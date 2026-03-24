@@ -10,6 +10,7 @@
 
 ```bash
 pip install gpt-command
+```
 
 ---
 
@@ -47,33 +48,54 @@ Then it will automatically prefill your terminal input:
 ---
 
 ⚙️ Options
+
 📋 Copy to clipboard
+
+```bash
 gptc --copy compress current folder into tar.gz
+```
 📖 Show explanation
+
+```bash
 gptc --explain find process using port 8000
+```
 ▶️ Execute command (with confirmation)
+
+```bash
 gptc --run check disk usage
+```
 🧠 Show history
+
+```bash
 gptc --history
+```
 🤖 Specify model
+
+```bash
 gptc --model gpt-4.1 list all running processes
+```
 
 ---
 
 🔐 Security
 
-API key is stored locally at:
+- API key is stored locally at:
 
+```bash
 ~/.config/gptc/config.json
+```
 File permissions are restricted to the user (600)
 Dangerous commands are automatically detected and blocked from execution
 
 ---
 
 ⚠️ Disclaimer
-Always review generated commands before running them
-Some commands may modify or delete system data
-Use with caution, especially with elevated privileges (sudo)
+- Always review generated commands before running them
+- Some commands may modify or delete system data
+- Use with caution, especially with elevated privileges (sudo)
+
+---
+
 🖥️ Supported Platforms
 macOS
 Linux (Ubuntu, etc.)
@@ -81,16 +103,19 @@ Linux (Ubuntu, etc.)
 ---
 
 ✨ Features
-Natural language → shell command
-Auto-prefilled terminal input (no copy-paste needed)
-Optional execution with confirmation
-Clipboard copy support
-Command explanation
-History tracking
-Local API key management (no environment variable required)
+- Natural language → shell command
+- Auto-prefilled terminal input (no copy-paste needed)
+- Optional execution with confirmation
+- Clipboard copy support
+- Command explanation
+- History tracking
+- Local API key management (no environment variable required)
+
+---
+
 📌 Summary
 
-Stop Googling terminal commands. Just ask.
+> Stop Googling terminal commands. Just ask.
 
 ---
 
