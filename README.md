@@ -18,31 +18,39 @@ pip install gpt-command
 
 Run once to store your OpenAI API key securely:
 
+```bash
 gptc-key
-
+```
 Check status:
 
+```bash
 gptc-key --status
-
+```
 Set default model (optional):
 
+```bash
 gptc-key --model gpt-4.1
+```
 
 ---
 
 💡 Usage
+```bash
 gptc <your question>
+```
 Example
+```bash
 gptc find and delete all txt files in current directory recursively
-
+```
 Output:
-
+```bash
 find . -type f -name "*.txt" -delete
-
+```
 Then it will automatically prefill your terminal input:
 
+```bash
 ~/current/path$ find . -type f -name "*.txt" -delete
-
+```
 ⚠️ The command is NOT executed automatically.
 
 ---
