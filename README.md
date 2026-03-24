@@ -105,8 +105,9 @@ Dangerous commands are automatically detected and blocked from execution
 ---
 
 🖥️ Supported Platforms
-macOS
-Linux (Ubuntu, etc.)
+
+- macOS
+- Linux (Ubuntu, etc.)
 
 ---
 
