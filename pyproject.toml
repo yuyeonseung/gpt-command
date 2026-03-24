@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpt-command"
+version = "0.1.0"
+description = "Ask GPT for Ubuntu/macOS/Linux shell commands from natural language"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Your Name" }
+]
+dependencies = [
+  "openai>=2.0.0",
+  "tqdm>=4.66.0"
+]
+
+[project.scripts]
+gptc = "gpt_command.cli:main"
+gptc-key = "gpt_command.key_manager:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
