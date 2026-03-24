@@ -10,6 +10,9 @@
 
 ```bash
 pip install gpt-command
+
+---
+
 🔑 Setup API Key
 
 Run once to store your OpenAI API key securely:
@@ -23,6 +26,9 @@ gptc-key --status
 Set default model (optional):
 
 gptc-key --model gpt-4.1
+
+---
+
 💡 Usage
 gptc <your question>
 Example
@@ -38,6 +44,8 @@ Then it will automatically prefill your terminal input:
 
 ⚠️ The command is NOT executed automatically.
 
+---
+
 ⚙️ Options
 📋 Copy to clipboard
 gptc --copy compress current folder into tar.gz
@@ -49,6 +57,9 @@ gptc --run check disk usage
 gptc --history
 🤖 Specify model
 gptc --model gpt-4.1 list all running processes
+
+---
+
 🔐 Security
 
 API key is stored locally at:
@@ -56,6 +67,9 @@ API key is stored locally at:
 ~/.config/gptc/config.json
 File permissions are restricted to the user (600)
 Dangerous commands are automatically detected and blocked from execution
+
+---
+
 ⚠️ Disclaimer
 Always review generated commands before running them
 Some commands may modify or delete system data
@@ -63,6 +77,9 @@ Use with caution, especially with elevated privileges (sudo)
 🖥️ Supported Platforms
 macOS
 Linux (Ubuntu, etc.)
+
+---
+
 ✨ Features
 Natural language → shell command
 Auto-prefilled terminal input (no copy-paste needed)
@@ -74,6 +91,8 @@ Local API key management (no environment variable required)
 📌 Summary
 
 Stop Googling terminal commands. Just ask.
+
+---
 
 📄 License
 
