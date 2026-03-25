@@ -1,0 +1,3 @@
+[console_scripts]
+gptc-gen = gpt_command.cli:main
+gptc-key = gpt_command.key_manager:main

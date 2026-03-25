@@ -1,9 +1,9 @@
 import argparse
+import os
 import sys
-from typing import Optional
+from typing import TextIO
 
 from openai import OpenAI
-from tqdm import tqdm
 
 from .config import get_api_key, get_default_model
 from .history import print_history, save_history_item
@@ -11,60 +11,112 @@ from .utils import (
     copy_to_clipboard,
     extract_command,
     is_dangerous_command,
-    prefilled_input,
     run_shell_command,
     yes_no,
 )
+import platform
 
-SYSTEM_PROMPT = """너는 Linux/macOS 터미널 명령어 생성기다.
 
-반드시 아래 규칙을 지켜라.
-1. 오직 실행 가능한 쉘 명령어 한 줄만 출력한다.
-2. 설명, 코드블록, 따옴표, 불필요한 문장은 절대 출력하지 않는다.
-3. bash/zsh 기준으로 동작 가능한 형태를 우선한다.
-4. 사용자의 요청이 위험하거나 파괴적이면 가능한 더 안전한 명령으로 대체한다.
-5. 여러 단계가 필요하면 && 로 연결된 한 줄 명령으로 만든다.
-6. 결과는 무조건 명령어 문자열만 반환한다.
+def detect_os() -> str:
+    system = platform.system().lower()
+
+    # macOS
+    if system == "darwin":
+        return "macOS"
+
+    # Linux 계열
+    if system == "linux":
+        try:
+            with open("/etc/os-release") as f:
+                content = f.read().lower()
+
+                if "ubuntu" in content:
+                    return "Ubuntu"
+                if "centos" in content:
+                    return "CentOS"
+                if "debian" in content:
+                    return "Debian"
+                if "fedora" in content:
+                    return "Fedora"
+                if "arch" in content:
+                    return "Arch Linux"
+        except Exception:
+            pass
+
+        return "Linux"
+
+    # Windows (WSL 포함 가능)
+    if system == "windows":
+        return "Windows"
+
+    return system.capitalize()
+
+def build_system_prompt() -> str:
+    current_os = detect_os()
+    shell = os.environ.get("SHELL", "").split("/")[-1]
+
+    return f"""You are a {current_os} {shell} terminal expert.
+
+Follow these rules exactly:
+1. Output only one executable shell command on a single line.
+2. Do not output explanations, code fences, quotes, or extra text.
+3. Generate commands optimized for {current_os} using {shell}.
+4. If the user's request is risky or destructive, suggest the safest practical command possible.
+5. If multiple steps are needed, combine them into a single one-liner using && when appropriate.
+6. Return only the command string.
+"""
+SYSTEM_PROMPT = build_system_prompt()
+
+EXPLAIN_PROMPT = """You are a Linux/macOS terminal command explainer.
+Explain the given command in up to 3 short lines:
+1. What it does
+2. What the important options mean
+3. Any caution the user should know
 """
 
-EXPLAIN_PROMPT = """너는 Linux/macOS 터미널 명령어 설명기다.
-아래 명령어를 3줄 이내로 짧고 명확하게 설명해라.
-1. 무엇을 하는 명령인지
-2. 중요한 옵션 의미
-3. 주의점
-"""
 
-
-def ask_model_for_command(question: str, model: str) -> str:
+def ask_model_for_command(question: str, model: str, stream_out: TextIO) -> str:
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError(
-            "OPENAI_API_KEY가 없습니다. 먼저 `gptc-key` 를 실행해서 API Key를 저장하세요."
+            "No OpenAI API key found. Run `gptc-key` first to store your API key."
         )
 
     client = OpenAI(api_key=api_key)
 
-    with tqdm(total=3, desc="GPT 처리", ncols=88) as pbar:
-        pbar.set_description("요청 준비")
-        pbar.update(1)
+    stream = client.responses.create(
+        model=model,
+        instructions=SYSTEM_PROMPT,
+        input=f"Convert this natural language request into a single shell command:\n{question}",
+        stream=True,
+    )
 
-        response = client.responses.create(
-            model=model,
-            instructions=SYSTEM_PROMPT,
-            input=f"다음 자연어 요청을 터미널 명령어 1줄로 변환:\n{question}",
-        )
+    chunks = []
+    printed_any = False
 
-        pbar.set_description("응답 수신")
-        pbar.update(1)
+    for event in stream:
+        event_type = getattr(event, "type", "")
 
-        text = getattr(response, "output_text", "") or ""
-        command = extract_command(text)
+        if event_type == "response.output_text.delta":
+            delta = getattr(event, "delta", "")
+            if delta:
+                print(delta, end="", flush=True, file=stream_out)
+                chunks.append(delta)
+                printed_any = True
+        elif hasattr(event, "delta") and isinstance(getattr(event, "delta"), str):
+            delta = getattr(event, "delta", "")
+            if delta:
+                print(delta, end="", flush=True, file=stream_out)
+                chunks.append(delta)
+                printed_any = True
 
-        pbar.set_description("결과 정리")
-        pbar.update(1)
+    if printed_any:
+        print(file=stream_out, flush=True)
+
+    command = extract_command("".join(chunks))
 
     if not command:
-        raise RuntimeError("모델 응답에서 명령어를 추출하지 못했습니다.")
+        raise RuntimeError("Failed to extract a command from the streamed response.")
 
     return command
 
@@ -73,23 +125,16 @@ def ask_model_for_explanation(command: str, model: str) -> str:
     api_key = get_api_key()
     if not api_key:
         raise RuntimeError(
-            "OPENAI_API_KEY가 없습니다. 먼저 `gptc-key` 를 실행해서 API Key를 저장하세요."
+            "No OpenAI API key found. Run `gptc-key` first to store your API key."
         )
 
     client = OpenAI(api_key=api_key)
 
-    with tqdm(total=2, desc="설명 생성", ncols=88) as pbar:
-        pbar.set_description("설명 요청")
-        pbar.update(1)
-
-        response = client.responses.create(
-            model=model,
-            instructions=EXPLAIN_PROMPT,
-            input=command,
-        )
-
-        pbar.set_description("설명 수신")
-        pbar.update(1)
+    response = client.responses.create(
+        model=model,
+        instructions=EXPLAIN_PROMPT,
+        input=command,
+    )
 
     text = getattr(response, "output_text", "") or ""
     return text.strip()
@@ -97,15 +142,15 @@ def ask_model_for_explanation(command: str, model: str) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="gptc",
-        description="자연어 질문을 Linux/macOS 쉘 명령어로 변환"
+        prog="gptc-gen",
+        description="Convert natural language into terminal commands for macOS and Linux.",
     )
-    parser.add_argument("question", nargs="*", help="자연어 질문")
-    parser.add_argument("--copy", action="store_true", help="결과를 클립보드에 복사")
-    parser.add_argument("--explain", action="store_true", help="명령어 설명도 함께 출력")
-    parser.add_argument("--run", action="store_true", help="확인 후 명령어 실행")
-    parser.add_argument("--model", type=str, default=None, help="사용할 모델명")
-    parser.add_argument("--history", action="store_true", help="최근 히스토리 보기")
+    parser.add_argument("question", nargs="*", help="Your natural language request.")
+    parser.add_argument("--copy", action="store_true", help="Copy the result to the clipboard.")
+    parser.add_argument("--explain", action="store_true", help="Show a short explanation of the command.")
+    parser.add_argument("--run", action="store_true", help="Run the generated command after confirmation.")
+    parser.add_argument("--model", type=str, default=None, help="Specify the model to use.")
+    parser.add_argument("--history", action="store_true", help="Show recent command history.")
     return parser
 
 
@@ -123,39 +168,43 @@ def main() -> None:
 
     question = " ".join(args.question).strip()
     model = args.model or get_default_model()
+    capture_mode = os.environ.get("GPTC_CAPTURE_MODE") == "1"
+    stream_out = sys.stderr if capture_mode else sys.stdout
 
     try:
-        command = ask_model_for_command(question, model=model)
+        command = ask_model_for_command(question, model=model, stream_out=stream_out)
     except KeyboardInterrupt:
-        print("\n중단됨")
+        print("\nInterrupted.", file=sys.stderr)
         sys.exit(130)
     except Exception as e:
-        print(f"오류: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    print(command)
 
     explained = False
     if args.explain:
         try:
             explanation = ask_model_for_explanation(command, model=model)
             if explanation:
-                print("\n[설명]")
+                print("\n[Explanation]")
                 print(explanation)
                 explained = True
         except Exception as e:
-            print(f"\n설명 생성 실패: {e}")
+            print(f"\nExplanation failed: {e}", file=sys.stderr)
 
     copied = False
     if args.copy:
         copied = copy_to_clipboard(command)
         if copied:
-            print("\n클립보드에 복사됨")
+            print("\nCopied to clipboard.")
         else:
-            print("\n클립보드 복사 실패 (pbcopy/xclip/wl-copy 확인 필요)")
+            print("\nFailed to copy to clipboard. Check pbcopy, xclip, or wl-copy.", file=sys.stderr)
 
     if is_dangerous_command(command):
-        print("\n[경고] 위험 가능성이 있는 명령어 패턴이 감지되어 자동 실행/자동 입력 단계를 막았습니다.")
+        print(
+            "\n[Warning] A potentially dangerous command pattern was detected. "
+            "Auto-run and shell insertion have been blocked.",
+            file=sys.stderr,
+        )
         save_history_item(
             question=question,
             command=command,
@@ -167,9 +216,9 @@ def main() -> None:
 
     if args.run:
         print()
-        if yes_no("이 명령어를 실행할까요?", default="n"):
+        if yes_no("Do you want to run this command?", default="n"):
             code = run_shell_command(command)
-            print(f"\n종료 코드: {code}")
+            print(f"\nExit code: {code}")
             save_history_item(
                 question=question,
                 command=command,
@@ -179,7 +228,7 @@ def main() -> None:
             )
             sys.exit(code)
         else:
-            print("실행 취소됨")
+            print("Execution cancelled.")
             save_history_item(
                 question=question,
                 command=command,
@@ -189,32 +238,6 @@ def main() -> None:
             )
             sys.exit(0)
 
-    try:
-        print()
-        entered = prefilled_input(command)
-        if entered.strip():
-            print("입력만 완료됨")
-    except KeyboardInterrupt:
-        print("\n취소됨")
-        save_history_item(
-            question=question,
-            command=command,
-            executed=False,
-            copied=copied,
-            explained=explained,
-        )
-        sys.exit(130)
-    except EOFError:
-        print()
-        save_history_item(
-            question=question,
-            command=command,
-            executed=False,
-            copied=copied,
-            explained=explained,
-        )
-        sys.exit(0)
-
     save_history_item(
         question=question,
         command=command,
@@ -222,3 +245,9 @@ def main() -> None:
         copied=copied,
         explained=explained,
     )
+
+    # shell integration mode:
+    # - stream was already shown on stderr
+    # - emit final command only once on stdout so the shell wrapper can capture it
+    if capture_mode:
+        print(command)

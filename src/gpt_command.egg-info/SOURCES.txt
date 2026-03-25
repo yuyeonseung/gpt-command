@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+src/gpt_command/__init__.py
+src/gpt_command/cli.py
+src/gpt_command/config.py
+src/gpt_command/history.py
+src/gpt_command/key_manager.py
+src/gpt_command/utils.py
+src/gpt_command.egg-info/PKG-INFO
+src/gpt_command.egg-info/SOURCES.txt
+src/gpt_command.egg-info/dependency_links.txt
+src/gpt_command.egg-info/entry_points.txt
+src/gpt_command.egg-info/requires.txt
+src/gpt_command.egg-info/top_level.txt
